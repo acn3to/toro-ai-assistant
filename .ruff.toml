@@ -1,0 +1,62 @@
+# Ruff Configuration
+# https://docs.astral.sh/ruff/configuration/
+
+# Target Python version
+target-version = "py39"
+
+# Line length configuration
+line-length = 100
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".github",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    ".aws-sam",
+    "events",
+    "docs",
+]
+
+[lint]
+# Enable all popular linters
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "B",  # flake8-bugbear
+    "I",  # isort
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "N",  # pep8-naming
+    "SIM", # flake8-simplify
+    "RUF", # Ruff-specific rules
+]
+
+# Ignore some specific warnings
+ignore = [
+    "E203",  # whitespace before ':'
+    "E501",  # line too long
+]
+
+# Allow auto-fix for certain rules
+fixable = ["ALL"]
+unfixable = []
+
+[lint.isort]
+force-single-line = false
+force-sort-within-sections = true
+combine-as-imports = true
+known-first-party = ["src"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[lint.flake8-quotes]
+docstring-quotes = "double"
+
+[lint.pep8-naming]
+classmethod-decorators = [
+    "classmethod",
+    "validator",
+    "root_validator",
+]
