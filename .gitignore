@@ -47,3 +47,6 @@ data/knowledge_base.json
 
 # Deployments
 packaged.yaml
+
+# Lambda Layers
+layer/python/

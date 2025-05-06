@@ -1,141 +1,208 @@
-        # Verifica se a atualização inclui o status e o erro
-# Makefile para o Toro AI Assistente
-.PHONY: help build clean deploy invoke start-api validate lint format test verify-alarms check-deployment prepare-data install update list-resources delete-stack create-bucket unit-test test-ingest test-lib coverage start-lambda
+.PHONY: help build clean deploy invoke start-api validate lint format test install update list-resources delete-stack create-bucket upload-documents prepare-layer build-with-deps
 
-# Variáveis
-STACK_NAME = toro-ai-assistant
-EVENTS_DIR = ./events
-S3_BUCKET = $(STACK_NAME)-artifacts
+# Variables
 STAGE = dev
-TEMPLATE = infra/template.yaml
+REGION = us-east-2
+STACK_NAME = toro-ai-assistant
+AWS_PROFILE = default
+S3_BUCKET = $(STACK_NAME)-artifacts
+KB_BUCKET = $(STACK_NAME)-kb-documents
+TEMPLATE = infra/serverless-template.yaml
+AWS_REGION = $(shell aws configure get region)
 
-# Cores para saída
+# Colors for output
 RESET = \033[0m
 GREEN = \033[32m
 YELLOW = \033[33m
 BLUE = \033[34m
 RED = \033[31m
 
-help: ## Exibe ajuda com todos os comandos
-	@echo "$(BLUE)Toro AI Assistant - Comandos disponíveis$(RESET)"
+help: ## Displays help with all available commands
+	@echo "$(BLUE)Toro AI Assistant - Available Commands$(RESET)"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(YELLOW)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 
-build: ## Constrói a aplicação SAM
-	@echo "$(GREEN)Construindo aplicação...$(RESET)"
+prepare-layer: ## Prepares the layer with the shared library
+	@echo "$(GREEN)Preparing layer with shared library...$(RESET)"
+	# Remove old layer and recreate directory
+	rm -rf layer/python
+	mkdir -p layer/python/lib/python3.11/site-packages
+
+	# Copy shared code to the correct folder
+	cp -r lib layer/python/
+
+	# Create a temporary virtual environment to install dependencies
+	python -m venv /tmp/toro-venv
+
+	# Activate the virtual environment and install dependencies
+	. /tmp/toro-venv/bin/activate && \
+	for func in src/questions/*/requirements.txt; do \
+		echo "Installing dependencies for $$func in the layer..."; \
+		pip install -r $$func && \
+		cp -r /tmp/toro-venv/lib/python3.11/site-packages/* layer/python/lib/python3.11/site-packages/; \
+	done && \
+	deactivate
+
+	# Remove the temporary virtual environment
+	rm -rf /tmp/toro-venv
+	@echo "$(GREEN)Layer successfully prepared.$(RESET)"
+
+build: prepare-layer ## Builds the SAM application
+	@echo "$(GREEN)Building the application...$(RESET)"
 	sam build --use-container -t $(TEMPLATE)
 
-clean: ## Remove arquivos temporários e diretórios de build
-	@echo "$(GREEN)Limpando diretório...$(RESET)"
+build-with-deps: prepare-layer ## Builds the SAM application with more details about dependencies
+	@echo "$(GREEN)Building the application with dependency details...$(RESET)"
+	sam build --use-container -t $(TEMPLATE) --debug
+
+clean: ## Removes temporary files and build directories
+	@echo "$(GREEN)Cleaning directory...$(RESET)"
 	rm -rf .aws-sam
 	rm -rf .pytest_cache
+	rm -rf layer/python
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 
-deploy: validate build create-bucket ## Faz o deploy da aplicação na AWS
-	@echo "$(GREEN)Realizando deploy...$(RESET)"
-	sam deploy --stack-name $(STACK_NAME)-$(STAGE) \
-		--s3-bucket $(S3_BUCKET) \
-		--capabilities CAPABILITY_IAM \
-		--parameter-overrides Stage=$(STAGE) \
-		--no-fail-on-empty-changeset \
-		-t $(TEMPLATE)
-
-validate: ## Valida o template SAM
-	@echo "$(GREEN)Validando template...$(RESET)"
-	sam validate -t $(TEMPLATE)
-
-start-api: build ## Inicia a API localmente
-	@echo "$(GREEN)Iniciando API localmente...$(RESET)"
-	sam local start-api -t $(TEMPLATE)
-
-invoke-ingest: build ## Invoca a função de ingestão localmente
-	@echo "$(GREEN)Invocando função de ingestão...$(RESET)"
-	sam local invoke IngestFunction -e $(EVENTS_DIR)/api-event.json -t $(TEMPLATE)
-
-invoke-process: build ## Invoca a função de processamento localmente
-	@echo "$(GREEN)Invocando função de processamento...$(RESET)"
-	sam local invoke ProcessFunction -e $(EVENTS_DIR)/sns-event.json -t $(TEMPLATE)
-
-invoke-notify: build ## Invoca a função de notificação localmente
-	@echo "$(GREEN)Invocando função de notificação...$(RESET)"
-	sam local invoke NotifyFunction -e $(EVENTS_DIR)/sns-event.json -t $(TEMPLATE)
-
-lint: ## Verifica lint em todos os arquivos Python
-	@echo "$(GREEN)Executando lint...$(RESET)"
-	poetry run ruff check src/ lib/ tests/
-
-format: ## Formata todos os arquivos Python
-	@echo "$(GREEN)Formatando código...$(RESET)"
-	poetry run ruff format src/ lib/ tests/
-
-test: ## Executa todos os testes (unitários e integração)
-	@echo "$(GREEN)Executando testes...$(RESET)"
-	poetry run pytest
-
-unit-test: ## Executa apenas os testes unitários
-	@echo "$(GREEN)Executando testes unitários...$(RESET)"
-	poetry run pytest tests/questions/
-
-# Alias para testes específicos
-test-ingest: ## Executa apenas os testes da função de ingestão
-	@echo "$(GREEN)Executando testes da função de ingestão...$(RESET)"
-	poetry run pytest tests/questions/ingest/
-
-test-lib: ## Executa apenas os testes da biblioteca compartilhada
-	@echo "$(GREEN)Executando testes da biblioteca...$(RESET)"
-	poetry run pytest tests/lib/
-
-coverage: ## Executa os testes e gera relatório de cobertura de código
-	@echo "$(GREEN)Executando testes com análise de cobertura...$(RESET)"
-	poetry run pytest --cov=src --cov=lib --cov-report=term-missing
-
-prepare-data: ## Prepara os dados de conhecimento para o RAG
-	@echo "$(GREEN)Preparando dados de conhecimento...$(RESET)"
-	mkdir -p data
-	poetry run python scripts/prepare_knowledge_base.py
-
-verify-alarms: ## Verifica a configuração dos alarmes CloudWatch
-	@echo "$(GREEN)Verificando configuração de alarmes...$(RESET)"
-	aws cloudwatch describe-alarms --alarm-name-prefix ToroAssistant
-
-check-deployment: ## Verifica o status do deployment mais recente
-	@echo "$(GREEN)Verificando status do deployment...$(RESET)"
-	aws cloudformation describe-stacks --stack-name $(STACK_NAME) \
-		--query "Stacks[0].StackStatus" --output text
-
-list-resources: ## Lista os recursos criados pelo CloudFormation
-	@echo "$(GREEN)Listando recursos criados...$(RESET)"
-	aws cloudformation describe-stack-resources --stack-name $(STACK_NAME)
-
-delete-stack: ## Remove um stack específico do CloudFormation (ex: make delete-stack STACK=nome-do-stack)
-	@echo "$(RED)ATENÇÃO: Esta operação irá excluir todos os recursos do stack $(RESET)"
-	@echo "$(RED)Stack a ser removido: $(STACK)$(RESET)"
-	@read -p "Tem certeza que deseja continuar? (y/n) " confirm; \
-	if [ "$$confirm" = "y" ]; then \
-		aws cloudformation delete-stack --stack-name $(STACK); \
-		echo "$(GREEN)Solicitação de remoção do stack $(STACK) enviada. Verificando status...$(RESET)"; \
-		aws cloudformation wait stack-delete-complete --stack-name $(STACK) || echo "$(RED)Erro ao aguardar exclusão do stack. Verifique no console da AWS.$(RESET)"; \
+deploy: validate build create-bucket ## Deploys the application to AWS
+	@echo "$(GREEN)Checking existing Knowledge Bases...$(RESET)"
+	@KB_LIST=$$(aws bedrock list-knowledge-bases --query "knowledgeBases[].knowledgeBaseId" --output text 2>/dev/null || echo ""); \
+	if [ -z "$$KB_LIST" ]; then \
+		echo "$(YELLOW)No Knowledge Base found.$(RESET)"; \
+		read -p "Enter the Knowledge Base ID (leave blank if none): " KB_ID; \
 	else \
-		echo "$(YELLOW)Operação cancelada.$(RESET)"; \
+		echo "$(GREEN)Knowledge Bases found: $$KB_LIST$(RESET)"; \
+		read -p "Choose an ID from the list above or enter a new one (leave blank to use the first one): " KB_ID_INPUT; \
+		if [ -z "$$KB_ID_INPUT" ]; then \
+			KB_ID=$$(echo $$KB_LIST | awk '{print $$1}'); \
+			echo "$(GREEN)Using Knowledge Base ID: $$KB_ID$(RESET)"; \
+		else \
+			KB_ID=$$KB_ID_INPUT; \
+			echo "$(GREEN)Using provided Knowledge Base ID: $$KB_ID$(RESET)"; \
+		fi; \
+	fi; \
+	if [ -z "$$KB_ID" ]; then \
+		echo "$(YELLOW)Deploying without Knowledge Base ID$(RESET)"; \
+		sam deploy --stack-name $(STACK_NAME)-$(STAGE) \
+			--s3-bucket $(S3_BUCKET) \
+			--region $(REGION) \
+			--capabilities CAPABILITY_IAM \
+			--parameter-overrides Stage=$(STAGE) BedrockModel=us.amazon.nova-pro-v1:0 \
+			--no-fail-on-empty-changeset \
+			-t $(TEMPLATE); \
+	else \
+		echo "$(GREEN)Deploying with Knowledge Base ID: $$KB_ID$(RESET)"; \
+		sam deploy --stack-name $(STACK_NAME)-$(STAGE) \
+			--s3-bucket $(S3_BUCKET) \
+			--region $(REGION) \
+			--capabilities CAPABILITY_IAM \
+			--parameter-overrides Stage=$(STAGE) KnowledgeBaseId=$$KB_ID BedrockModel=us.amazon.nova-pro-v1:0 \
+			--no-fail-on-empty-changeset \
+			-t $(TEMPLATE); \
 	fi
 
-create-bucket: ## Cria o bucket S3 necessário para armazenar artefatos de deploy
-	@echo "$(GREEN)Criando bucket S3 para artefatos...$(RESET)"
-	@aws s3 ls s3://$(S3_BUCKET) >/dev/null 2>&1 && echo "$(YELLOW)Bucket $(S3_BUCKET) já existe.$(RESET)" || \
-	aws s3 mb s3://$(S3_BUCKET) --region $(shell aws configure get region) && \
-	echo "$(GREEN)Bucket $(S3_BUCKET) criado com sucesso.$(RESET)"
+validate: ## Validates the SAM template
+	@echo "$(GREEN)Validating template...$(RESET)"
+	sam validate -t $(TEMPLATE)
 
-install: ## Instala dependências com Poetry (ambiente de desenvolvimento)
-	@echo "$(GREEN)Instalando dependências com Poetry...$(RESET)"
+start-api: build ## Starts the API locally
+	@echo "$(GREEN)Starting API locally...$(RESET)"
+	sam local start-api -t $(TEMPLATE)
+
+lint: ## Runs lint check on all Python files
+	@echo "$(GREEN)Running lint...$(RESET)"
+	poetry run ruff check src/ lib/ tests/
+
+format: ## Formats all Python files
+	@echo "$(GREEN)Formatting code...$(RESET)"
+	poetry run ruff format src/ lib/ tests/
+
+test: ## Runs all tests (unit and integration)
+	@echo "$(GREEN)Running tests...$(RESET)"
+	poetry run pytest
+
+create-bucket: ## Creates the S3 bucket to store deployment artifacts
+	@echo "$(GREEN)Creating S3 bucket for artifacts...$(RESET)"
+	@aws s3 ls s3://$(S3_BUCKET) >/dev/null 2>&1 && echo "$(YELLOW)Bucket $(S3_BUCKET) already exists.$(RESET)" || \
+	aws s3 mb s3://$(S3_BUCKET) --region $(AWS_REGION) && \
+	echo "$(GREEN)Bucket $(S3_BUCKET) successfully created.$(RESET)"
+
+create-kb-bucket: ## Creates the S3 bucket for Knowledge Base documents
+	@echo "$(GREEN)Creating S3 bucket for Knowledge Base documents...$(RESET)"
+	@aws s3 ls s3://$(KB_BUCKET) >/dev/null 2>&1 && echo "$(YELLOW)Bucket $(KB_BUCKET) already exists.$(RESET)" || \
+	aws s3 mb s3://$(KB_BUCKET) --region $(AWS_REGION) && \
+	echo "$(GREEN)Bucket $(KB_BUCKET) successfully created.$(RESET)"
+
+upload-documents: create-kb-bucket ## Uploads documents to the S3 Knowledge Base bucket
+	@echo "$(GREEN)Uploading documents to the S3 bucket...$(RESET)"
+	@if [ -d "data/documents/" ]; then \
+		aws s3 cp data/documents/ s3://$(KB_BUCKET)/documents/ --recursive; \
+		echo "$(GREEN)Documents successfully uploaded.$(RESET)"; \
+	else \
+		echo "$(YELLOW)data/documents/ directory not found. Creating...$(RESET)"; \
+		mkdir -p data/documents; \
+		echo "$(YELLOW)Place your documents in data/documents/ and run again.$(RESET)"; \
+	fi
+
+install: ## Installs dependencies with Poetry (development environment)
+	@echo "$(GREEN)Installing dependencies with Poetry...$(RESET)"
 	poetry install
 
-update: ## Atualiza dependências com Poetry (ambiente de desenvolvimento)
-	@echo "$(GREEN)Atualizando dependências com Poetry...$(RESET)"
+update: ## Updates dependencies with Poetry (development environment)
+	@echo "$(GREEN)Updating dependencies with Poetry...$(RESET)"
 	poetry update
 
-start-lambda: build ## Inicia o Lambda localmente para testes
-	@echo "$(GREEN)Iniciando Lambda localmente...$(RESET)"
-	sam local start-lambda -t $(TEMPLATE)
+list-resources: ## Lists the resources created by CloudFormation
+	@echo "$(GREEN)Listing created resources...$(RESET)"
+	aws cloudformation describe-stack-resources --stack-name $(STACK_NAME)-$(STAGE)
+
+delete-stack: ## Removes a specific CloudFormation stack (e.g., make delete-stack STACK=stack-name)
+	@echo "$(RED)WARNING: This operation will delete all resources of stack $(RESET)"
+	@echo "$(RED)Stack to be removed: $(STACK)$(RESET)"
+	@read -p "Are you sure you want to proceed? (y/n) " confirm; \
+	if [ "$$confirm" = "y" ]; then \
+		aws cloudformation delete-stack --stack-name $(STACK); \
+		echo "$(GREEN)Delete stack request sent. Checking status...$(RESET)"; \
+		aws cloudformation wait stack-delete-complete --stack-name $(STACK) || echo "$(RED)Error waiting for stack deletion. Check AWS console.$(RESET)"; \
+	else \
+		echo "$(YELLOW)Operation canceled.$(RESET)"; \
+	fi
+
+kb-instructions: ## Shows instructions for creating the Knowledge Base manually
+	@echo "$(GREEN)=================================================$(RESET)"
+	@echo "$(GREEN)  INSTRUCTIONS TO CREATE THE KNOWLEDGE BASE MANUALLY$(RESET)"
+	@echo "$(GREEN)=================================================$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)1. Go to the AWS Bedrock console:$(RESET)"
+	@echo "   https://console.aws.amazon.com/bedrock/home"
+	@echo ""
+	@echo "$(YELLOW)2. In the sidebar menu, select 'Knowledge base'$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)3. Click on 'Create knowledge base'$(RESET)"
+	@echo ""
+	@echo "$(YELLOW)4. Provide the details for the Knowledge Base:$(RESET)"
+	@echo "   - Name: toro-ai-assistant-kb"
+	@echo "   - Description: Knowledge Base for Toro AI Assistant"
+	@echo "   - IAM role: Create a new role or use an existing one"
+	@echo ""
+	@echo "$(YELLOW)5. Configure the data source:$(RESET)"
+	@echo "   - Data source name: investment-documents"
+	@echo "   - S3 location: s3://$(KB_BUCKET)/documents/"
+	@echo "   - Embedding model: Amazon Titan Embeddings - Text"
+	@echo ""
+	@echo "$(YELLOW)6. Configure the Vector Database:$(RESET)"
+	@echo "   - Type: OpenSearch Serverless"
+	@echo "   - Collection: Create new or use existing"
+	@echo "   - Index name: kb-index"
+	@echo "   - Vector field: vector"
+	@echo "   - Text field: text"
+	@echo "   - Metadata field: metadata"
+	@echo ""
+	@echo "$(YELLOW)7. After creating the Knowledge Base, obtain the ID:$(RESET)"
+	@echo "   - Note the Knowledge Base ID (format KB-XXXXXXXX)"
+	@echo ""
+	@echo "$(YELLOW)8. Deploy or update the application with the ID:$(RESET)"
+	@echo "   make deploy"
+	@echo ""
+	@echo "$(GREEN)=================================================$(RESET)"
