@@ -1,4 +1,4 @@
-.PHONY: help build clean deploy invoke start-api validate lint format test install update list-resources delete-stack create-bucket upload-documents prepare-layer build-with-deps
+.PHONY: help build clean deploy invoke start-api validate lint format test install update list-resources delete-stack create-bucket upload-documents prepare-layer build-with-deps print-account print-kb
 
 # Variables
 STAGE = dev
@@ -9,6 +9,8 @@ S3_BUCKET = $(STACK_NAME)-artifacts
 KB_BUCKET = $(STACK_NAME)-kb-documents
 TEMPLATE = infra/serverless-template.yaml
 AWS_REGION = $(shell aws configure get region)
+ACCOUNT_ID := $(shell aws sts get-caller-identity --query "Account" --output text)
+KNOWLEDGE_BASE_ID := $(shell aws bedrock-agent list-knowledge-bases --query "knowledgeBaseSummaries[0].knowledgeBaseId" --output text)
 
 # Colors for output
 RESET = \033[0m
@@ -16,6 +18,12 @@ GREEN = \033[32m
 YELLOW = \033[33m
 BLUE = \033[34m
 RED = \033[31m
+
+print-account: ## Prints the AWS Account ID
+	@echo "AWS Account ID: $(ACCOUNT_ID)"
+
+print-kb: ## Prints the Knowledge Base ID
+	@echo "Knowledge Base ID: $(KNOWLEDGE_BASE_ID)"
 
 help: ## Displays help with all available commands
 	@echo "$(BLUE)Toro AI Assistant - Available Commands$(RESET)"
@@ -66,38 +74,26 @@ clean: ## Removes temporary files and build directories
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 
 deploy: validate build create-bucket ## Deploys the application to AWS
-	@echo "$(GREEN)Checking existing Knowledge Bases...$(RESET)"
-	@KB_LIST=$$(aws bedrock list-knowledge-bases --query "knowledgeBases[].knowledgeBaseId" --output text 2>/dev/null || echo ""); \
-	if [ -z "$$KB_LIST" ]; then \
-		echo "$(YELLOW)No Knowledge Base found.$(RESET)"; \
-		read -p "Enter the Knowledge Base ID (leave blank if none): " KB_ID; \
-	else \
-		echo "$(GREEN)Knowledge Bases found: $$KB_LIST$(RESET)"; \
-		read -p "Choose an ID from the list above or enter a new one (leave blank to use the first one): " KB_ID_INPUT; \
-		if [ -z "$$KB_ID_INPUT" ]; then \
-			KB_ID=$$(echo $$KB_LIST | awk '{print $$1}'); \
-			echo "$(GREEN)Using Knowledge Base ID: $$KB_ID$(RESET)"; \
-		else \
-			KB_ID=$$KB_ID_INPUT; \
-			echo "$(GREEN)Using provided Knowledge Base ID: $$KB_ID$(RESET)"; \
-		fi; \
-	fi; \
-	if [ -z "$$KB_ID" ]; then \
-		echo "$(YELLOW)Deploying without Knowledge Base ID$(RESET)"; \
+	@echo "$(GREEN)Setting up deployment parameters...$(RESET)"
+	@echo "$(GREEN)Using AWS Account ID: $(ACCOUNT_ID)$(RESET)"
+	@echo "$(GREEN)Using Knowledge Base ID: $(KNOWLEDGE_BASE_ID)$(RESET)"
+
+	@if [ -z "$(KNOWLEDGE_BASE_ID)" ]; then \
+		echo "$(YELLOW)No Knowledge Base found. Deploying without RAG capabilities.$(RESET)"; \
 		sam deploy --stack-name $(STACK_NAME)-$(STAGE) \
 			--s3-bucket $(S3_BUCKET) \
 			--region $(REGION) \
 			--capabilities CAPABILITY_IAM \
-			--parameter-overrides Stage=$(STAGE) BedrockModel=us.amazon.nova-pro-v1:0 \
+			--parameter-overrides Stage=$(STAGE) BedrockModel=us.amazon.nova-pro-v1:0 AwsAccountId=$(ACCOUNT_ID) \
 			--no-fail-on-empty-changeset \
 			-t $(TEMPLATE); \
 	else \
-		echo "$(GREEN)Deploying with Knowledge Base ID: $$KB_ID$(RESET)"; \
+		echo "$(GREEN)Deploying with Knowledge Base ID: $(KNOWLEDGE_BASE_ID)$(RESET)"; \
 		sam deploy --stack-name $(STACK_NAME)-$(STAGE) \
 			--s3-bucket $(S3_BUCKET) \
 			--region $(REGION) \
 			--capabilities CAPABILITY_IAM \
-			--parameter-overrides Stage=$(STAGE) KnowledgeBaseId=$$KB_ID BedrockModel=us.amazon.nova-pro-v1:0 \
+			--parameter-overrides Stage=$(STAGE) KnowledgeBaseId=$(KNOWLEDGE_BASE_ID) BedrockModel=us.amazon.nova-pro-v1:0 AwsAccountId=$(ACCOUNT_ID) \
 			--no-fail-on-empty-changeset \
 			-t $(TEMPLATE); \
 	fi
