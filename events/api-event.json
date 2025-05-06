@@ -1,9 +1,0 @@
-{
-  "body": "{\"user_id\": \"user123\", \"question\": \"O que é CDB?\"}",
-  "requestContext": {
-    "http": {
-      "method": "POST",
-      "path": "/questions"
-    }
-  }
-}
