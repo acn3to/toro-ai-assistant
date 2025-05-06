@@ -11,6 +11,15 @@ from typing import Any, Optional
 from aws_lambda_powertools import Logger
 from botocore.client import BaseClient
 
+from lib.core.constants import (
+    DEFAULT_INFERENCE_PROFILE_ID,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_PROMPT_TEMPLATE,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
+    DEFAULT_VECTOR_SEARCH_RESULTS,
+)
+
 logger = Logger()
 
 
@@ -42,14 +51,16 @@ class BedrockClient:
         self.client = bedrock_agent_runtime_client
         self.knowledge_base_id = knowledge_base_id or os.environ.get("KNOWLEDGE_BASE_ID")
         self.inference_profile_id = inference_profile_id or os.environ.get(
-            "INFERENCE_PROFILE_ID", "us.amazon.nova-pro-v1:0"
+            "INFERENCE_PROFILE_ID", DEFAULT_INFERENCE_PROFILE_ID
         )
 
         logger.info(
             f"BedrockClient initialized: inference_profile_id={self.inference_profile_id}, kb_id={self.knowledge_base_id}"
         )
 
-    def retrieve_and_generate(self, query: str, max_tokens: int = 4096) -> dict[str, Any]:
+    def retrieve_and_generate(
+        self, query: str, max_tokens: int = DEFAULT_MAX_TOKENS
+    ) -> dict[str, Any]:
         """
         Retrieves relevant documents and generates a response based on them.
 
@@ -58,7 +69,7 @@ class BedrockClient:
             max_tokens (int): Token limit for the response.
 
         Returns:
-            dict: Contains 'answer', 'sources', 'inference_profile_id', and 'found_relevant_docs'.
+            dict: Contains 'answer' and 'inference_profile_id'.
 
         Raises:
             ValueError: If `knowledge_base_id` is not defined.
@@ -80,70 +91,21 @@ class BedrockClient:
                         "knowledgeBaseId": self.knowledge_base_id,
                         "modelArn": profile_arn,
                         "retrievalConfiguration": {
-                            "vectorSearchConfiguration": {"numberOfResults": 10}
+                            "vectorSearchConfiguration": {
+                                "numberOfResults": DEFAULT_VECTOR_SEARCH_RESULTS
+                            }
                         },
                         "generationConfiguration": {
-                            "promptTemplate": {
-                                "textPromptTemplate": (
-                                    "Você é um assistente de investimentos da Toro especializado em responder "
-                                    "perguntas usando SOMENTE as informações fornecidas no contexto abaixo. "
-                                    "IMPORTANTE: Você NÃO deve usar seu conhecimento geral ou informações que "
-                                    "não estejam explicitamente presentes nos documentos abaixo. "
-                                    "Se os documentos não contiverem informações suficientes para responder à pergunta, "
-                                    "você deve responder: 'Não tenho informações suficientes "
-                                    "para responder a essa pergunta.' "
-                                    "Suas respostas devem ser baseadas EXCLUSIVAMENTE no conteúdo dos documentos, "
-                                    "sem adicionar conhecimento externo. "
-                                    "\n\n"
-                                    "CONTEXTO:"
-                                    "\n$search_results$\n\n"
-                                    "Pergunta: $query$\n\n"
-                                    "Resposta (usando APENAS as informações do CONTEXTO acima):"
-                                )
-                            },
+                            "promptTemplate": {"textPromptTemplate": DEFAULT_PROMPT_TEMPLATE},
                             "inferenceConfig": inference_config,
                         },
                     },
                 },
             )
 
-            logger.info("Response received from Bedrock")
-
-            answer = response["output"]["text"]
-            sources = []
-
-            citations = response.get("citations", [])
-            logger.info(f"Number of citations received: {len(citations)}")
-
-            for cite in citations:
-                retrieved_refs = cite.get("retrievedReferences", [])
-
-                if isinstance(retrieved_refs, dict):
-                    uri = retrieved_refs.get("location", {}).get("s3Location", {}).get("uri", "")
-                    text = retrieved_refs.get("content", {}).get("text", "")
-                    if uri:
-                        sources.append({"document_id": uri, "excerpt": text})
-
-                elif isinstance(retrieved_refs, list):
-                    for ref in retrieved_refs:
-                        if isinstance(ref, dict):
-                            uri = ref.get("location", {}).get("s3Location", {}).get("uri", "")
-                            text = ref.get("content", {}).get("text", "")
-                            if uri:
-                                sources.append({"document_id": uri, "excerpt": text})
-
-            if not sources:
-                logger.warning("No sources extracted from citations")
-            else:
-                logger.info(f"Extracted {len(sources)} sources from citations")
-
-            found_relevant_docs = len(sources) > 0
-
             return {
-                "answer": answer,
-                "sources": sources,
+                "answer": response["output"]["text"],
                 "inference_profile_id": self.inference_profile_id,
-                "found_relevant_docs": found_relevant_docs,
             }
 
         except Exception as e:
@@ -168,4 +130,10 @@ class BedrockClient:
         """
         Generates the inference configuration for the model.
         """
-        return {"textInferenceConfig": {"maxTokens": max_tokens, "temperature": 0.1, "topP": 0.9}}
+        return {
+            "textInferenceConfig": {
+                "maxTokens": max_tokens,
+                "temperature": DEFAULT_TEMPERATURE,
+                "topP": DEFAULT_TOP_P,
+            }
+        }

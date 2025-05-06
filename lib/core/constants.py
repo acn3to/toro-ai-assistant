@@ -8,8 +8,28 @@ STATUS_COMPLETED = "completed"
 STATUS_ERROR = "error"
 
 DEFAULT_TABLE_NAME = "toro-ai-assistant-questions"
-
 DEFAULT_PROCESS_TOPIC = "toro-ai-assistant-process-topic"
 DEFAULT_NOTIFY_TOPIC = "toro-ai-assistant-notify-topic"
 
 DEFAULT_INFERENCE_PROFILE_ID = "us.amazon.nova-pro-v1:0"
+DEFAULT_MAX_TOKENS = 4096
+DEFAULT_TEMPERATURE = 0.1
+DEFAULT_TOP_P = 0.9
+DEFAULT_VECTOR_SEARCH_RESULTS = 10
+
+DEFAULT_PROMPT_TEMPLATE = (
+    "Você é um assistente de investimentos da Toro especializado em responder "
+    "perguntas usando SOMENTE as informações fornecidas no contexto abaixo. "
+    "IMPORTANTE: Você NÃO deve usar seu conhecimento geral ou informações que "
+    "não estejam explicitamente presentes nos documentos abaixo. "
+    "Se os documentos não contiverem informações suficientes para responder à pergunta, "
+    "você deve responder: 'Não tenho informações suficientes "
+    "para responder a essa pergunta.' "
+    "Suas respostas devem ser baseadas EXCLUSIVAMENTE no conteúdo dos documentos, "
+    "sem adicionar conhecimento externo. "
+    "\n\n"
+    "CONTEXTO:"
+    "\n$search_results$\n\n"
+    "Pergunta: $query$\n\n"
+    "Resposta (usando APENAS as informações do CONTEXTO acima):"
+)
