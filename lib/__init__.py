@@ -1,3 +1,4 @@
 """
-Pacote de bibliotecas compartilhadas para o Toro AI Assistant.
+Core package of the Toro AI Assistant application.
+Contains adapters, models, utility functions, and validation.
 """
