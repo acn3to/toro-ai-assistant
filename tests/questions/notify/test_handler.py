@@ -151,7 +151,6 @@ def test_websocket_connection_error(connections_table_mock):
     )
 
     assert result is False
-    # Verifica se tentou deletar a conexão expirada
     connections_table_mock.delete_item.assert_called_once()
 
 
@@ -180,7 +179,6 @@ def test_lambda_handler_success(
 def test_lambda_handler_websocket_failure(lambda_context, db_client_mock, standard_event):
     """Tests handling when WebSocket notification fails."""
 
-    # Mock de connections_table que faz o WebSocket falhar
     connections_table_mock = MagicMock(spec=DynamoDBTable)
     connections_table_mock.get_item.return_value = {"Item": {}}  # Sem connection_id
 

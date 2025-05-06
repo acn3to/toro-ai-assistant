@@ -87,7 +87,6 @@ def test_connect_without_user(connect_event_no_user, connections_table_mock):
 def test_disconnect(disconnect_event, connections_table_mock):
     """Tests handling of $disconnect event."""
 
-    # Simula encontrar um item com esse connection_id
     connections_table_mock.scan.return_value = {
         "Items": [{"user_id": "test123", "connection_id": "connection-123"}]
     }
