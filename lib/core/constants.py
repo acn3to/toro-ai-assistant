@@ -8,6 +8,7 @@ STATUS_COMPLETED = "completed"
 STATUS_ERROR = "error"
 
 DEFAULT_TABLE_NAME = "toro-ai-assistant-questions"
+DEFAULT_CONNECTIONS_TABLE = "toro-websocket-connections"
 DEFAULT_PROCESS_TOPIC = "toro-ai-assistant-process-topic"
 DEFAULT_NOTIFY_TOPIC = "toro-ai-assistant-notify-topic"
 

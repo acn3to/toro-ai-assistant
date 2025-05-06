@@ -22,6 +22,40 @@ class SNSTopic(Protocol):
         ...
 
 
+@runtime_checkable
+class DynamoDBTable(Protocol):
+    """Protocol for representing a DynamoDB table."""
+
+    def put_item(self, **kwargs: Any) -> dict[str, Any]:
+        """Puts an item in the table."""
+        ...
+
+    def get_item(self, **kwargs: Any) -> dict[str, Any]:
+        """Gets an item from the table."""
+        ...
+
+    def update_item(self, **kwargs: Any) -> dict[str, Any]:
+        """Updates an item in the table."""
+        ...
+
+    def delete_item(self, **kwargs: Any) -> dict[str, Any]:
+        """Deletes an item from the table."""
+        ...
+
+    def scan(self, **kwargs: Any) -> dict[str, Any]:
+        """Scans the table."""
+        ...
+
+
+@runtime_checkable
+class APIGatewayManagementClient(Protocol):
+    """Protocol for representing an API Gateway Management client."""
+
+    def post_to_connection(self, **kwargs: Any) -> dict[str, Any]:
+        """Posts a message to a connection."""
+        ...
+
+
 class DynamoDBResponse(TypedDict, total=False):
     """Model for DynamoDB responses."""
 

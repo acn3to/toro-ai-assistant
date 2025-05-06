@@ -12,11 +12,12 @@ from botocore.client import BaseClient
 from lib.adapters.bedrock_client import BedrockClient
 from lib.adapters.dynamodb_client import DynamoDBClient
 from lib.core.constants import (
+    DEFAULT_CONNECTIONS_TABLE,
     DEFAULT_NOTIFY_TOPIC,
     DEFAULT_PROCESS_TOPIC,
     DEFAULT_TABLE_NAME,
 )
-from lib.models.aws import SNSTopic
+from lib.models.aws import APIGatewayManagementClient, DynamoDBTable, SNSTopic
 
 
 def get_dynamodb_resource(region_name: Optional[str] = None) -> Any:
@@ -74,6 +75,59 @@ def get_dynamodb_client(
     table_name = table_name or os.environ.get("TABLE_NAME", DEFAULT_TABLE_NAME)
     resource = dynamodb_resource or get_dynamodb_resource()
     return DynamoDBClient(dynamodb_resource=resource, table_name=table_name)
+
+
+def get_dynamodb_table(table_name: str, dynamodb_resource: Optional[Any] = None) -> DynamoDBTable:
+    """
+    Returns a configured DynamoDB table resource.
+
+    Args:
+        table_name: Name of the DynamoDB table
+        dynamodb_resource: Optional DynamoDB resource for testing
+
+    Returns:
+        DynamoDB table resource
+    """
+    resource = dynamodb_resource or get_dynamodb_resource()
+    return cast(DynamoDBTable, resource.Table(table_name))
+
+
+def get_connections_table(
+    table_name: Optional[str] = None, dynamodb_resource: Optional[Any] = None
+) -> DynamoDBTable:
+    """
+    Returns the WebSocket connections table.
+
+    Args:
+        table_name: Optional name for connections table
+        dynamodb_resource: Optional DynamoDB resource for testing
+
+    Returns:
+        WebSocket connections DynamoDB table
+    """
+    table_name = table_name or os.environ.get("CONNECTIONS_TABLE", DEFAULT_CONNECTIONS_TABLE)
+    return get_dynamodb_table(table_name, dynamodb_resource)
+
+
+def get_api_gateway_management_client(
+    endpoint_url: Optional[str] = None, region_name: Optional[str] = None
+) -> APIGatewayManagementClient:
+    """
+    Returns an API Gateway Management API client.
+
+    Args:
+        endpoint_url: WebSocket API endpoint URL
+        region_name: Optional AWS region
+
+    Returns:
+        API Gateway Management API client
+    """
+    endpoint = endpoint_url or os.environ.get("WEBSOCKET_API_ENDPOINT")
+    if not endpoint:
+        raise ValueError("WEBSOCKET_API_ENDPOINT must be provided")
+
+    client = boto3.client("apigatewaymanagementapi", endpoint_url=endpoint, region_name=region_name)
+    return cast(APIGatewayManagementClient, client)
 
 
 def get_sns_topic(topic_name: Optional[str] = None, sns_resource: Any = None) -> SNSTopic:
