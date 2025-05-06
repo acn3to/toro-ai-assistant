@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Toro AI Assistant - Backend serverless for answering investment questions
+
+Parameters:
+  KnowledgeBaseId:
+    Type: String
+    Description: ID of the Knowledge Base in Amazon Bedrock
+    Default: ""
+  BedrockModel:
+    Type: String
+    Description: ID of the Amazon Bedrock AI model
+    Default: "us.amazon.nova-pro-v1:0"
+  Stage:
+    Type: String
+    Description: Deployment stage
+    Default: "dev"
+  AwsAccountId:
+    Type: String
+    Description: AWS Account ID for ARN creation
+    Default: ""
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+    Layers:
+      - !Ref CommonLibLayer
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref QuestionsTable
+        PROCESS_TOPIC: !Ref ProcessTopic
+        NOTIFY_TOPIC: !Ref NotifyTopic
+        KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
+        INFERENCE_PROFILE_ID: !Ref BedrockModel
+        AWS_ACCOUNT_ID: !Ref AwsAccountId
+        PYTHONPATH: /opt/python:/opt/python/lib/python3.11/site-packages
+
+Resources:
+  CommonLibLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: toro-ai-assistant-lib
+      Description: Shared library for Toro AI Assistant
+      ContentUri: ../layer
+      CompatibleRuntimes:
+        - python3.11
+      RetentionPolicy: Retain
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../src/questions/ingest/
+      Handler: handler.lambda_handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /questions
+            Method: post
+      Environment:
+        Variables:
+          SNS_TOPIC: !Ref ProcessTopic
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuestionsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt ProcessTopic.TopicName
+
+  ProcessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../src/questions/process/
+      Handler: handler.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      Events:
+        SNSEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref ProcessTopic
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QuestionsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt NotifyTopic.TopicName
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:RetrieveAndGenerate
+                - bedrock:Retrieve
+                - bedrock-agent-runtime:Retrieve
+                - bedrock-agent-runtime:RetrieveAndGenerate
+              Resource: '*'
+
+  NotifyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../src/questions/notify/
+      Handler: handler.lambda_handler
+      Events:
+        SNSEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref NotifyTopic
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: '*'
+
+  QuestionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: toro-ai-assistant-questions
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  ProcessTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: toro-ai-assistant-process-topic
+
+  NotifyTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: toro-ai-assistant-notify-topic
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/questions"
+  QuestionsTable:
+    Description: "DynamoDB table for questions and answers"
+    Value: !Ref QuestionsTable
+  KnowledgeBaseId:
+    Description: "Knowledge Base ID used for RAG"
+    Value: !Ref KnowledgeBaseId
+  ProcessTopic:
+    Description: "ARN of the SNS topic for processing"
+    Value: !Ref ProcessTopic
+  NotifyTopic:
+    Description: "ARN of the SNS topic for notifications"
+    Value: !Ref NotifyTopic
