@@ -1,3 +1,3 @@
 """
-Pacote de testes para os módulos da biblioteca compartilhada.
+Test package for the modules of the shared library.
 """

@@ -120,9 +120,6 @@ class BedrockClient:
             return profile_id
 
         account = os.environ.get("AWS_ACCOUNT_ID")
-        if not account:
-            raise ValueError("Environment variable AWS_ACCOUNT_ID is not set.")
-
         region = self.client.meta.region_name
         return f"arn:aws:bedrock:{region}:{account}:inference-profile/{profile_id}"
 

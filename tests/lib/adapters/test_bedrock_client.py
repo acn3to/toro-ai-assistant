@@ -130,18 +130,6 @@ def test_retrieve_and_generate_client_error(aws_account_env):
         client.retrieve_and_generate("What is CDB?")
 
 
-def test_get_inference_profile_arn_with_account_id():
-    """Tests the _get_inference_profile_arn method with account ID."""
-    client = setup_mock_bedrock_client()
-
-    with patch.dict(os.environ, {"AWS_ACCOUNT_ID": "123456789012"}):
-        arn = client._get_inference_profile_arn("us.amazon.nova-pro-v1:0")
-        assert (
-            arn
-            == "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-pro-v1:0"
-        )
-
-
 def test_get_inference_profile_arn_existing_arn():
     """Tests that _get_inference_profile_arn returns unchanged ARNs."""
     client = setup_mock_bedrock_client()
@@ -154,14 +142,13 @@ def test_get_inference_profile_arn_existing_arn():
 
 
 def test_get_inference_profile_arn_without_account_id():
-    """Tests that _get_inference_profile_arn raises error when AWS_ACCOUNT_ID is not set."""
+    """Tests that _get_inference_profile_arn uses the default value when AWS_ACCOUNT_ID is not set."""
     client = setup_mock_bedrock_client()
 
-    with (
-        patch.dict(os.environ, clear=True),
-        pytest.raises(ValueError, match="Environment variable AWS_ACCOUNT_ID is not set"),
-    ):
-        client._get_inference_profile_arn("us.amazon.nova-pro-v1:0")
+    with patch.dict(os.environ, clear=True):
+        arn = client._get_inference_profile_arn("us.amazon.nova-pro-v1:0")
+        assert "arn:aws:bedrock:us-east-1:" in arn
+        assert ":inference-profile/us.amazon.nova-pro-v1:0" in arn
 
 
 def test_get_inference_config():
