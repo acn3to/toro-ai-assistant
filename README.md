@@ -57,7 +57,7 @@ Toro AI Assistant follows a serverless, event-driven architecture designed for s
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌────────────┐     ┌───────────────────┐     ┌─────────────┐
-│  API Gateway│────▶│ Lambda - Ingest  │───▶│ SNS Topic  │────▶│ Lambda - Process  │────▶│ SNS Topic   │
+│  API Gateway│────▶│ Lambda - Ingest  │────▶│ SNS Topic  │────▶│ Lambda - Process  │────▶│ SNS Topic   │
 └─────────────┘     └──────────────────┘     │ (Process)  │     └───────────────────┘     │ (Notify)    │
                            │                 └────────────┘               │               └─────────────┘
                            │                                              │                       │
