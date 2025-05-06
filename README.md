@@ -1,151 +1,182 @@
-# Toro AI Assistant
+<div align="center">
+  <img src="images/toro-assistant-logo.png" alt="Toro AI Assistant Logo" width="200"/>
+  <h1>Toro AI Assistant</h1>
+  <p>A serverless investment Q&A assistant with Retrieval Augmented Generation</p>
 
-![Versão](https://img.shields.io/badge/versão-1.0.0-blue)
-![Python](https://img.shields.io/badge/python-3.11-green)
-![AWS SAM](https://img.shields.io/badge/aws--sam-latest-orange)
-![Poetry](https://img.shields.io/badge/poetry-1.8.5-purple)
+  <p>
+    <a href="#features"><img src="https://img.shields.io/badge/✨-Features-FFE165?style=for-the-badge" alt="Features"/></a>
+    <a href="#architecture"><img src="https://img.shields.io/badge/🏗️-Architecture-2EA043?style=for-the-badge" alt="Architecture"/></a>
+    <a href="#getting-started"><img src="https://img.shields.io/badge/🚀-Getting_Started-E33B2E?style=for-the-badge" alt="Getting Started"/></a>
+    <a href="#documentation"><img src="https://img.shields.io/badge/📚-Documentation-8A2BE2?style=for-the-badge" alt="Documentation"/></a>
+  </p>
 
-Assistente virtual serverless baseado em IA que responde perguntas sobre investimentos e serviços da Toro Investimentos, com histórico persistente e notificações em tempo real.
+  <p>
+    <img src="https://img.shields.io/badge/python-3.11-3776AB?style=flat-square&logo=python" alt="Python"/>
+    <img src="https://img.shields.io/badge/AWS_SAM-latest-FF9900?style=flat-square&logo=amazon-aws" alt="AWS SAM"/>
+    <img src="https://img.shields.io/badge/serverless-architecture-2E7D32?style=flat-square&logo=serverless" alt="Serverless"/>
+    <img src="https://img.shields.io/badge/RAG-enabled-5E35B1?style=flat-square&logo=none" alt="RAG"/>
+  </p>
+</div>
 
-## 🚀 Visão Geral
+<hr>
 
-O Toro AI Assistant permite que usuários façam perguntas sobre investimentos e recebam respostas contextualizadas, utilizando dados específicos da Toro Investimentos. O sistema utiliza arquitetura serverless na AWS e tecnologia RAG (Retrieval Augmented Generation) para fornecer respostas precisas e relevantes.
+## Table of Contents
 
-### Principais Recursos
+- [Table of Contents](#-table-of-contents)
+- [Features](#-features)
+- [Architecture](#️-architecture)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Development Setup](#development-setup)
+  - [Deployment](#deployment)
+- [API Usage](#-api-usage)
+- [Project Structure](#-project-structure)
+- [Documentation](#-documentation)
+- [Contributors](#-contributors)
+- [License](#-license)
 
-- ✅ Envio de perguntas via API REST
-- ✅ Processamento assíncrono com SNS
-- ✅ Respostas contextualizadas via RAG
-- ✅ Persistência de perguntas/respostas no DynamoDB
-- ✅ Notificações de novas respostas
-- ✅ Interface frontend
-- ✅ Monitoramento e alertas com CloudWatch
+<hr>
 
-## 🏗️ Arquitetura
+## Features
 
-O sistema utiliza arquitetura event-driven serverless na AWS:
+Toro AI Assistant is a serverless application that provides contextualized investment answers using AWS services and Retrieval Augmented Generation (RAG).
+
+- **Event-Driven Architecture** - Asynchronous processing with event-based component decoupling
+- **RAG Implementation** - Context-aware responses using AWS Bedrock Knowledge Bases
+- **Real-time Notifications** - WebSocket integration for instant updates
+- **Serverless Approach** - Zero infrastructure management with AWS Lambda
+- **Data Persistence** - Reliable storage with DynamoDB
+- **Clean Architecture** - Feature-first organization with separation of concerns
+- **Comprehensive Testing** - Robust test coverage for critical components
+
+<hr>
+
+## Architecture
+
+Toro AI Assistant follows a serverless, event-driven architecture designed for scalability and reliability.
 
 ```
-API Gateway → Lambda Ingest → SNS → Lambda Process → SNS → Lambda Notify
-                    ↓                    ↓  ↑               ↓
-                DynamoDB               RAG + IA        Notificações
+┌─────────────┐     ┌──────────────────┐     ┌────────────┐     ┌───────────────────┐     ┌─────────────┐
+│  API Gateway│────▶│ Lambda - Ingest  │───▶│ SNS Topic  │────▶│ Lambda - Process  │────▶│ SNS Topic   │
+└─────────────┘     └──────────────────┘     │ (Process)  │     └───────────────────┘     │ (Notify)    │
+                           │                 └────────────┘               │               └─────────────┘
+                           │                                              │                       │
+                           ▼                                              ▼                       ▼
+                    ┌─────────────┐                             ┌─────────────────┐      ┌───────────────┐
+                    │  DynamoDB   │◀────────────────────────────│ AWS Bedrock     │      │Lambda - Notify│
+                    │  Table      │                             │ Knowledge Base  │      └───────────────┘
+                    └─────────────┘                             └─────────────────┘              │
+                                                                                                 ▼
+                                                                                         ┌───────────────┐
+                                                                                         │ WebSocket API │
+                                                                                         └───────────────┘
 ```
 
-## 🛠️ Tecnologias Utilizadas
+### <img src="images/api-gateway.svg" width="24" height="24" style="vertical-align: middle;"> API Gateway
+- **REST API** - Handles HTTP requests
+- **WebSocket API** - Enables real-time notifications
 
-- **Backend**: Python 3.11, AWS Lambda, SNS, DynamoDB
-- **Frontend**: HTML, JavaScript, CSS
-- **IaC**: AWS SAM
-- **IA/RAG**: AWS Bedrock
-- **Gerenciamento de Dependências**: Poetry, pip (Lambdas)
-- **CI/CD**: GitHub Actions
-- **Monitoramento**: CloudWatch Alarms
-- **Linting/Formatação**: Ruff, pre-commit
+### <img src="images/lambda.svg" width="24" height="24" style="vertical-align: middle;"> Lambda Functions
+- **Ingest** - Receives and validates questions, stores in DynamoDB
+- **Process** - Generates responses using RAG with AWS Bedrock
+- **Notify** - Sends real-time notifications to users
+- **WebSocket Handler** - Manages WebSocket connections
 
-## 🔧 Instalação e Setup
+### <img src="images/sns.svg" width="24" height="24" style="vertical-align: middle;"> Amazon Simple Notification Service (SNS)
+- **Process Topic** - Decouples ingest and processing
+- **Notify Topic** - Decouples processing and notifications
 
-### Pré-requisitos
+### <img src="images/dynamoDB.svg" width="24" height="24" style="vertical-align: middle;"> Amazon DynamoDB
+- **Questions Table** - Stores questions and responses
+- **Connections Table** - Manages WebSocket connections
 
-- AWS CLI configurado com credenciais apropriadas
-- Python >= 3.11
-- AWS SAM CLI
-- Poetry >= 1.0.0
+### <img src="images/bedrock.png" width="24" height="24" style="vertical-align: middle;"> AWS Bedrock and Knowledge Base
+- **RAG Implementation** - Retrieves relevant documents and generates contextual responses
 
-### Instruções de Setup
 
-1. **Clone o repositório**
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11 or higher
+- AWS CLI configured with appropriate permissions
+- AWS SAM CLI for deployment
+- Make (optional, for automation)
+- Poetry (optional, for dependency management)
+
+### Development Setup
+
+1. **Clone the repository**
 
 ```bash
 git clone https://github.com/acn3to/toro-ai-assistant.git
 cd toro-ai-assistant
 ```
 
-2. **Instale as dependências**
+2. **Set up your environment**
 
+Using Poetry (recommended):
 ```bash
-# Instalar Poetry (se ainda não estiver instalado)
-curl -sSL https://install.python-poetry.org | python3 -
+# Install Poetry if not already installed
+pip install poetry
 
-# Instalar dependências do projeto usando Poetry
+# Install dependencies
 poetry install
+
+# Activate virtual environment
+poetry shell
 ```
 
-3. **Configure as variáveis de ambiente**
+Using pip:
+```bash
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-Crie um arquivo `.env` na raiz do projeto:
-
-```
-RAG_DATA_PATH=./data/knowledge_base.json
-BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
-AWS_REGION=us-east-2
-TABLE_NAME=toro-ai-assistant-questions
-PROCESS_TOPIC=toro-ai-assistant-process-topic
-NOTIFY_TOPIC=toro-ai-assistant-notify-topic
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-4. **Execute localmente para desenvolvimento**
+3. **Configure AWS credentials**
+
+Ensure your AWS CLI is configured with proper credentials:
+```bash
+aws configure
+```
+
+For detailed setup instructions, refer to the [Development Environment Setup](docs/setup-dev.md).
+
+### Deployment
+
+Deploy the application using AWS SAM:
 
 ```bash
-# Construir o projeto
+# Build the application
 make build
+# or
+sam build --use-container
 
-# Iniciar a API localmente
-make start-api
-
-# Testar a função de ingestão
-make invoke-ingest
+# Deploy to AWS
+make deploy
+# or
+sam deploy --guided
 ```
 
-5. **Fazer deploy na AWS**
+For comprehensive deployment instructions, see [Deployment Guide](docs/deployment.md).
+
+<hr>
+
+## API Usage
+
+### Send a Question
 
 ```bash
-# Fazer deploy (primeira vez)
-sam deploy --guided
-
-# Para deploys subsequentes
-make deploy
+curl -X POST https://your-api-endpoint.execute-api.us-east-2.amazonaws.com/Prod/questions \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "user123", "question": "What is a CDB?"}'
 ```
 
-## 📋 Usando o Makefile
-
-O projeto inclui um Makefile para simplificar tarefas comuns:
-
-| Comando | Descrição |
-|---------|-----------|
-| `make help` | Exibe a lista de comandos disponíveis |
-| `make build` | Constrói a aplicação SAM |
-| `make clean` | Remove arquivos temporários e diretórios de build |
-| `make deploy` | Faz o deploy da aplicação na AWS |
-| `make validate` | Valida o template SAM |
-| `make start-api` | Inicia a API localmente para testes |
-| `make start-lambda` | Inicia o Lambda localmente para testes |
-| `make invoke-ingest` | Invoca a função de ingestão localmente |
-| `make lint` | Verifica lint em todos os arquivos Python |
-| `make format` | Formata todos os arquivos Python |
-| `make test` | Executa todos os testes (unitários e integração) |
-| `make test-ingest` | Executa apenas os testes da função de ingestão |
-| `make test-lib` | Executa apenas os testes da biblioteca compartilhada |
-| `make coverage` | Executa testes e gera relatório de cobertura |
-| `make list-resources` | Lista os recursos criados pelo CloudFormation |
-| `make check-deployment` | Verifica o status do deployment mais recente |
-| `make delete-stack` | Remove um stack do CloudFormation |
-
-## 📈 Como Usar
-
-### API Endpoints
-
-- **POST /questions**
-
-  Envia uma nova pergunta:
-
-  ```json
-  {
-    "user_id": "user123",
-    "question": "O que é um CDB?"
-  }
-  ```
-
-  Resposta:
+Response:
 
   ```json
   {
@@ -158,14 +189,90 @@ O projeto inclui um Makefile para simplificar tarefas comuns:
   }
   ```
 
-### Exemplo de uso com curl
+<hr>
 
-```bash
-curl -X POST https://[seu-api-id].execute-api.[sua-regiao].amazonaws.com/Prod/questions \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "user123", "question": "O que é CDB?"}'
+## Project Structure
+
+```
+.
+├── lib/                   # Shared libraries
+│   ├── adapters/          # External service clients (DynamoDB, Bedrock)
+│   ├── core/              # Utilities, constants, shared functionality
+│   ├── factories/         # Client creation
+│   ├── models/            # Data models and validation
+│   └── utils/             # Utility functions
+├── src/                   # Lambda functions
+│   ├── questions/         # Question-related Lambdas
+│   │   ├── ingest/        # Ingest Lambda - API Gateway entry point
+│   │   ├── process/       # Process Lambda - Handles RAG execution
+│   │   └── notify/        # Notify Lambda - WebSocket notifications
+│   └── websocket/         # WebSocket connection management
+├── infra/                 # Infrastructure as code
+│   └── serverless-template.yaml  # AWS SAM template
+└── tests/                 # Automated tests
+    ├── lib/               # Tests for shared libraries
+    └── questions/         # Tests for Lambda functions
 ```
 
-## 📝 Licença
+<hr>
 
-Este projeto está licenciado sob a [MIT License](LICENSE).
+## Documentation
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><a href="docs/architecture.md"><img src="https://img.shields.io/badge/🏗️-Architecture-2EA043?style=for-the-badge" alt="Architecture"/></a></td>
+      <td>Detailed description of the system architecture and components</td>
+    </tr>
+    <tr>
+      <td align="center"><a href="docs/setup-dev.md"><img src="https://img.shields.io/badge/💻-Development_Setup-3178C6?style=for-the-badge" alt="Development Setup"/></a></td>
+      <td>Guide for setting up your development environment</td>
+    </tr>
+    <tr>
+      <td align="center"><a href="docs/deployment.md"><img src="https://img.shields.io/badge/🚀-Deployment_Guide-E33B2E?style=for-the-badge" alt="Deployment Guide"/></a></td>
+      <td>Instructions for deploying the application to AWS</td>
+    </tr>
+    <tr>
+      <td align="center"><a href="docs/clean-code-scalability.md"><img src="https://img.shields.io/badge/✨-Clean_Code_&_Scalability-FFE165?style=for-the-badge" alt="Clean Code & Scalability"/></a></td>
+      <td>Clean code practices and scalability considerations</td>
+    </tr>
+    <tr>
+      <td align="center"><a href="docs/challenge.md"><img src="https://img.shields.io/badge/🏆-Challenge-8A2BE2?style=for-the-badge" alt="Challenge"/></a></td>
+      <td>Original challenge requirements and specifications</td>
+    </tr>
+  </table>
+</div>
+
+<hr>
+
+## Contributors
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/acn3to">
+        <img src="https://github.com/acn3to.png" width="100px;" alt="Arnaldo Neto"/>
+        <br />
+        <sub><b>Arnaldo Neto</b></sub>
+      </a>
+      <br />
+      <a href="https://www.linkedin.com/in/arnaldo-n3to/" title="LinkedIn">
+        <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white" alt="LinkedIn"/>
+      </a>
+    </td>
+  </tr>
+</table>
+
+<hr>
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+<br>
+
+<div align="center">
+  <a href="#toro-ai-assistant">
+    <img src="https://img.shields.io/badge/⬆️_Back_to_Top-0A66C2?style=for-the-badge" alt="Back to Top"/>
+  </a>
+</div>
