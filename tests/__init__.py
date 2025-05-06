@@ -1,3 +1,3 @@
 """
-Pacote de testes para o Toro AI Assistant.
+Test suite for the Toro AI Assistant.
 """

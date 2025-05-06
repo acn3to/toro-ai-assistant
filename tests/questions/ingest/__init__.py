@@ -1,3 +1,3 @@
 """
-Pacote de testes para o módulo de ingestão de perguntas.
+Test suite for the question ingestion module.
 """
