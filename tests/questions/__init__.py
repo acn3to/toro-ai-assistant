@@ -1,3 +1,3 @@
 """
-Testes para o módulo de questions do Toro AI Assistant.
+Tests for the questions module of the Toro AI Assistant.
 """
